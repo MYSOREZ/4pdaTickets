@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 1. ОСНОВНАЯ тема приложения БЕЗ ActionBar -->
+    <style name="Theme.WebMessageMonitor" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- фирменные цвета -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item> <!-- Material 3 -->
+        <item name="colorPrimaryDark">@color/purple_700</item>     <!-- для старых API -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorAccent">@color/teal_200</item>
+
+        <!-- убираем шапку окончательно -->
+        <item name="android:windowNoTitle">true</item>
+        <item name="windowActionBar">false</item>
+
+        <!-- прочие настройки -->
+        <item name="android:windowBackground">@color/white</item>
+        <item name="android:hardwareAccelerated">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <!-- 2. Тема-клон, если когда-то нужна активность «NoActionBar» отдельно -->
+    <style name="Theme.WebMessageMonitor.NoActionBar" parent="Theme.WebMessageMonitor"/>
+
+    <!-- 3. Тема для сплэш-скрина -->
+    <style name="Theme.WebMessageMonitor.Splash" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/white</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="colorPrimary">@color/purple_500</item>
+    </style>
+
+</resources>

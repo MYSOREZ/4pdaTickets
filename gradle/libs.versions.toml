@@ -1,0 +1,83 @@
+###############################################################################
+# libs.versions.toml
+# Version-catalog для Gradle 8+. Подключается автоматически,
+# если в settings.gradle.kts присутствует enableFeaturePreview или AGP 8.1+
+###############################################################################
+
+#########################
+# 1.  Имена-версии
+#########################
+[versions]
+agp               = "8.4.0"       # Android Gradle Plugin
+kotlin            = "2.0.21"      # Kotlin + compose-plugin
+compose-bom       = "2025.03.00"  # BOM для всех Compose-артефактов
+
+core-ktx          = "1.13.1"
+appcompat         = "1.6.1"
+activity          = "1.9.0"
+lifecycle         = "2.8.1"
+
+material          = "1.12.0"      # Material XML
+constraintlayout  = "2.1.4"
+webkit            = "1.10.0"
+
+compose-ui        = "1.6.6"
+compose-material3 = "1.2.1"
+
+junit4            = "4.13.2"
+androidx-junit    = "1.1.5"
+espresso          = "3.5.1"
+
+#########################
+# 2.  Плагины
+#########################
+[plugins]
+android-application = { id = "com.android.application",           version.ref = "agp" }
+kotlin-android      = { id = "org.jetbrains.kotlin.android",      version.ref = "kotlin" }
+kotlin-compose      = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+
+#########################
+# 3.  Библиотеки
+#########################
+[libraries]
+
+# --- базовые AndroidX / Kotlin ---
+androidx-core-ktx          = { group = "androidx.core",            name = "core-ktx",            version.ref = "core-ktx" }
+androidx-appcompat         = { group = "androidx.appcompat",       name = "appcompat",           version.ref = "appcompat" }
+androidx-activity-ktx      = { group = "androidx.activity",        name = "activity-ktx",        version.ref = "activity" }
+androidx-lifecycle-runtime = { group = "androidx.lifecycle",       name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+
+# --- UI на XML ---
+material                   = { group = "com.google.android.material", name = "material",          version.ref = "material" }
+constraintlayout           = { group = "androidx.constraintlayout",  name = "constraintlayout",   version.ref = "constraintlayout" }
+webkit                     = { group = "androidx.webkit",            name = "webkit",             version.ref = "webkit" }
+
+# --- Compose ---
+compose-bom                = { group = "androidx.compose",          name = "compose-bom",         version.ref = "compose-bom" }
+compose-ui                 = { group = "androidx.compose.ui",       name = "ui",                  version.ref = "compose-ui" }
+compose-ui-graphics        = { group = "androidx.compose.ui",       name = "ui-graphics",         version.ref = "compose-ui" }
+compose-ui-tooling-preview = { group = "androidx.compose.ui",       name = "ui-tooling-preview",  version.ref = "compose-ui" }
+compose-material3          = { group = "androidx.compose.material3",name = "material3",           version.ref = "compose-material3" }
+compose-ui-tooling         = { group = "androidx.compose.ui",       name = "ui-tooling",          version.ref = "compose-ui" }
+compose-ui-test-junit4     = { group = "androidx.compose.ui",       name = "ui-test-junit4",      version.ref = "compose-ui" }
+compose-ui-test-manifest   = { group = "androidx.compose.ui",       name = "ui-test-manifest",    version.ref = "compose-ui" }
+
+# --- Тесты ---
+junit                      = { group = "junit",                    name = "junit",               version.ref = "junit4" }
+androidx-junit             = { group = "androidx.test.ext",        name = "junit",               version.ref = "androidx-junit" }
+espresso-core              = { group = "androidx.test.espresso",   name = "espresso-core",       version.ref = "espresso" }
+
+#########################
+# 4.  Bundles (опционально, для удобства)
+#########################
+[bundles]
+
+androidx-core      = ["androidx-core-ktx"]
+appcompat-full     = ["androidx-appcompat", "androidx-activity-ktx", "androidx-lifecycle-runtime"]
+ui-xml             = ["material", "constraintlayout", "webkit"]
+
+compose-core       = ["compose-bom", "compose-ui", "compose-ui-graphics", "compose-material3", "compose-ui-tooling-preview"]
+compose-debug      = ["compose-ui-tooling", "compose-ui-test-manifest"]
+compose-testing    = ["compose-ui-test-junit4"]
+
+tests              = ["junit", "androidx-junit", "espresso-core"]
