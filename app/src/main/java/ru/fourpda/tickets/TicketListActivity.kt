@@ -8,8 +8,9 @@ import androidx.recyclerview.widget.RecyclerView
 
 /**
  * Восстановленная реализация экрана "Мои тикеты".
- * Берёт сохранённые тикеты из SharedPreferences (временное решение)
- * и отображает их через TicketAdapter. При отсутствии данных показывает сообщение.
+ * Берёт сохранённые тикеты из SharedPreferences, куда TicketMonitor пишет
+ * последний набор найденных тикетов (ключ last_ticket_json). Если данных нет —
+ * показывает сообщение.
  */
 class TicketListActivity : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
@@ -19,34 +20,29 @@ class TicketListActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_ticket_list)
 
-        // Кнопка "назад"
+        // Навигация
         findViewById<View>(R.id.btnBack)?.setOnClickListener { finish() }
-        // Кнопка "обновить"
-        findViewById<View>(R.id.btnRefreshTickets)?.setOnClickListener {
-            loadTicketsAndRender()
-        }
+        findViewById<View>(R.id.btnRefreshTickets)?.setOnClickListener { loadTicketsAndRender() }
 
+        // Список
         recycler = findViewById(R.id.recyclerTickets)
         recycler.layoutManager = LinearLayoutManager(this)
-        adapter = TicketAdapter { /* onTicketClick: открытие уже реализовано внутри адаптера */ }
+        adapter = TicketAdapter { /* открытие реализовано в Adapter через IntentDebugger */ }
         recycler.adapter = adapter
 
         loadTicketsAndRender()
     }
 
     private fun loadTicketsAndRender() {
-        // Временное восстановление: читаем список из SharedPreferences,
-        // куда QuickCheckWorker/TicketMonitor положили последний найденный список в JSON-формате
-        // Ключи и формат берём совместимые с проектом: "last_ticket_json" для одного тикета
-        val prefs = getSharedPreferences("ticket_stats", MODE_PRIVATE)
-        val raw = prefs.getString("last_ticket_json", "") ?: ""
-
         val textMessage = findViewById<android.widget.TextView>(R.id.textMessage)
         val statsContainer = findViewById<View>(R.id.statsContainer)
         val progress = findViewById<View>(R.id.progressBar)
-
         progress.visibility = View.GONE
         statsContainer.visibility = View.GONE
+
+        // Совместимый ключ для последнего набора тикетов
+        val prefs = getSharedPreferences("ticket_stats", MODE_PRIVATE)
+        val raw = prefs.getString("last_ticket_json", "") ?: ""
 
         if (raw.isBlank()) {
             textMessage.visibility = View.VISIBLE
@@ -69,7 +65,7 @@ class TicketListActivity : AppCompatActivity() {
                         topic = o.optString("topic"),
                         description = o.optString("description"),
                         sender = o.optString("sender"),
-                        status = 0, // показываем только новые (status-0) — совместимо с текущей логикой
+                        status = 0,
                         moderator = "",
                         postAuthor = ""
                     )
@@ -77,9 +73,7 @@ class TicketListActivity : AppCompatActivity() {
             }
 
             textMessage.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
-            if (items.isEmpty()) {
-                textMessage.text = "Список пуст"
-            }
+            if (items.isEmpty()) textMessage.text = "Список пуст"
             adapter.setTickets(items)
         } catch (e: Exception) {
             textMessage.visibility = View.VISIBLE
