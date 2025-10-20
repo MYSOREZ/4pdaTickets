@@ -25,7 +25,6 @@ class TicketMonitor(
     }
 
     private val handler = Handler(Looper.getMainLooper())
-    private val shownNotificationIds = mutableSetOf<String>()
     private val queue: Deque<Ticket> = ArrayDeque()
     private var queueBusy = false
     private var isMonitoringActive = false
@@ -70,9 +69,10 @@ class TicketMonitor(
 
     fun clearHistory() {
         Log.d(TAG, "🧹 Очистка истории уведомлений")
-        shownNotificationIds.clear()
         queue.clear()
         queueBusy = false
+        // Очищаем также дедуплицированные записи
+        TicketNotifyDeduper.clear(context)
     }
 
     // Публичные методы для вызова из QuickCheckWorker при необходимости
@@ -126,7 +126,7 @@ class TicketMonitor(
                 let totalCount = 0;
                 let debugInfo = 'DEBUG [' + new Date().toLocaleTimeString() + ']: Анализ страницы тикетов 4PDA: ';
                 
-                const allRows = document.querySelectorAll('div.t-row[id^="t-row-"]');
+                const allRows = document.querySelectorAll('div.t-row[id^=\"t-row-\"]');
                 totalCount = allRows.length;
                 debugInfo += 'Найдено строк тикетов: ' + totalCount + '. ';
                 
@@ -210,11 +210,11 @@ class TicketMonitor(
                       }
                       
                       if (contentEl) {
-                        const topicMatch = contentEl.innerHTML.match(/Тема:<\/strong>\s*<a[^>]+>([^<]+)<\/a>/);
+                        const topicMatch = contentEl.innerHTML.match(/Тема:<\\/strong>\\s*<a[^>]+>([^<]+)<\\/a>/);
                         if (topicMatch) {
                           topic = topicMatch[1].trim();
                         } else {
-                          const topicLink = contentEl.querySelector('a[href*="findpost"]');
+                          const topicLink = contentEl.querySelector('a[href*=\"findpost\"]');
                           if (topicLink) {
                             topic = topicLink.textContent.trim();
                           }
@@ -229,15 +229,15 @@ class TicketMonitor(
                           let messageHTML = lastTdMessage.innerHTML;
 
                           // Аккуратно удаляем блок с IP и QMS, где бы он ни был
-                          messageHTML = messageHTML.replace(/IP:[\s\S]*?QMS/g, '');
+                          messageHTML = messageHTML.replace(/IP:[\\s\\S]*?QMS/g, '');
 
                           // Теперь обрабатываем очищенный HTML
-                          messageHTML = messageHTML.replace(/<br\s*\/?>/gi, '\n');
-                          messageHTML = messageHTML.replace(/<\/p>|<\/div>/gi, '\n');
+                          messageHTML = messageHTML.replace(/<br\\s*\\/?>/gi, '\\n');
+                          messageHTML = messageHTML.replace(/<\\/p>|<\\/div>/gi, '\\n');
                           let descText = messageHTML.replace(/<[^>]+>/g, '').trim();
 
                           // Финальная очистка пробелов
-                          descText = descText.replace(/(\s*\n\s*)+/g, '\n').trim();
+                          descText = descText.replace(/(\\s*\\n\\s*)+/g, '\\n').trim();
                           // --- Конец улучшенной логики ---
 
                           // Ограничиваем длину описания
@@ -295,8 +295,11 @@ class TicketMonitor(
             Log.d(TAG, "🎯 JavaScript нашел тикеты со статусом 0: $j")
             FileLogger.d(TAG, "🎯 JavaScript нашел тикеты со статусом 0: $j")
             val arr = org.json.JSONArray(j)
-            var newTicketsCount = 0
             val totalTicketsFound = arr.length()
+
+            // Создаем список всех найденных тикетов и соответствующих TicketInfo
+            val allTickets = mutableListOf<Ticket>()
+            val allTicketInfos = mutableListOf<TicketInfo>()
 
             repeat(arr.length()) { i ->
                 val obj = arr.getJSONObject(i)
@@ -308,15 +311,45 @@ class TicketMonitor(
                     obj.getString("topic"),
                     obj.getString("description")
                 )
-                if (ticket.id !in shownNotificationIds) {
-                    shownNotificationIds.add(ticket.id)
-                    queue.add(ticket)
-                    newTicketsCount++
-                }
+                allTickets.add(ticket)
+                
+                // Создаем TicketInfo для дедупликации
+                allTicketInfos.add(
+                    TicketInfo(
+                        id = ticket.id,
+                        title = ticket.title,
+                        url = "https://4pda.to/forum/index.php?act=ticket&s=thread&t_id=${ticket.id}",
+                        status = "${ticket.topic}|${ticket.description}", // Используем topic+description как статус для отслеживания изменений
+                        lastUpdate = ticket.date
+                    )
+                )
             }
 
-            if (!queueBusy && queue.isNotEmpty()) processQueue()
-            onStatusUpdate("Активно тикетов: $totalTicketsFound")
+            // Фильтруем только новые (еще не показанные) тикеты
+            val newTicketInfos = TicketNotifyDeduper.filterNew(context, allTicketInfos)
+            
+            if (newTicketInfos.isEmpty()) {
+                Log.d(TAG, "⚠️ Все тикеты уже были показаны ранее, пропускаем дубли: $totalTicketsFound")
+                onStatusUpdate("Активно тикетов: $totalTicketsFound (дубли пропущены)")
+                return
+            }
+
+            // Находим соответствующие тикеты для показа
+            val newTicketIds = newTicketInfos.map { it.id }.toSet()
+            val ticketsToShow = allTickets.filter { it.id in newTicketIds }
+
+            Log.d(TAG, "✅ Найдено новых тикетов для показа: ${ticketsToShow.size} из $totalTicketsFound")
+
+            // Добавляем в очередь для показа
+            queue.addAll(ticketsToShow)
+            if (!queueBusy && queue.isNotEmpty()) {
+                processQueue()
+            }
+
+            // Помечаем как показанные ПОСЛЕ успешной постановки в очередь
+            TicketNotifyDeduper.markShown(context, newTicketInfos)
+
+            onStatusUpdate("Активно тикетов: $totalTicketsFound (новых: ${ticketsToShow.size})")
         }
 
         @JavascriptInterface
@@ -373,9 +406,21 @@ class TicketMonitor(
         val ticketUrl = "https://4pda.to/forum/index.php?act=ticket&s=thread&t_id=${ticket.id}"
         val intent = createTicketIntent(ticketUrl)
 
+        // Создаем TicketInfo для генерации стабильного ключа уведомления
+        val ticketInfo = TicketInfo(
+            id = ticket.id,
+            title = ticket.title,
+            url = ticketUrl,
+            status = "${ticket.topic}|${ticket.description}", // Используем topic+description как статус
+            lastUpdate = ticket.date
+        )
+        
+        // Используем стабильный ключ для ID уведомления
+        val notificationId = TicketNotifyDeduper.key(ticketInfo).hashCode()
+
         val pendingIntent = PendingIntent.getActivity(
             context,
-            ticket.id.hashCode(),
+            notificationId, // Используем тот же ID для PendingIntent
             intent,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -421,7 +466,7 @@ class TicketMonitor(
             .setAutoCancel(true)
             .build()
 
-        nm.notify(ticket.id.hashCode(), notification)
-        Log.d(TAG, "✅ Уведомление в стиле 'билет в кружке' отправлено")
+        nm.notify(notificationId, notification)
+        Log.d(TAG, "✅ Уведомление в стиле 'билет в кружке' отправлено с ID: $notificationId")
     }
 }
