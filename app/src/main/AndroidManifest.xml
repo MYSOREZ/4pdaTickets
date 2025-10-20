@@ -1,19 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="ru.fourpda.tickets">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- ========== РАЗРЕШЕНИЯ ========== -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.QUICKBOOT_POWERON"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 
     <application
         android:name=".TicketApplication"
@@ -50,13 +53,58 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".MainActivity" />
         </activity>
+        
+        <!-- ========== АКТИВНОСТЬ НАСТРОЙКИ MIUI ========== -->
+        <activity
+            android:name=".MiuiSetupActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.WebMessageMonitor">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
+        
+        <!-- ========== DEBUG МЕНЮ ========== -->
+        <activity
+            android:name=".DebugMenuActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:parentActivityName=".SettingsActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".SettingsActivity" />
+        </activity>
+        
+        <!-- ========== СПИСОК ТИКЕТОВ ========== -->
+        <activity
+            android:name=".TicketListActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="portrait"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
 
         <!-- ========== УСТОЙЧИВЫЙ FOREGROUND SERVICE ========== -->
         <service
             android:name=".ForegroundMonitorService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="dataSync|specialUse"
+            android:stopWithTask="false"/>
+            
+        <!-- ========== WATCHDOG SERVICE ДЛЯ ДОПОЛНИТЕЛЬНОЙ ЗАЩИТЫ ========== -->
+        <service
+            android:name=".WatchdogService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|specialUse"
             android:stopWithTask="false"/>
 
         <!-- ========== АВТОЗАПУСК ПРИ ЗАГРУЗКЕ ========== -->
@@ -71,6 +119,26 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
                 <action android:name="android.intent.action.PACKAGE_REPLACED"/>
                 <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- ========== ALARM RECEIVER ДЛЯ БОРЬБЫ С УСЫПЛЕНИЕМ ========== -->
+        <receiver
+            android:name=".AlarmReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.fourpda.tickets.CHECK_SERVICE"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- ========== EXACT ALARM RECEIVER ДЛЯ ЧАСТЫХ ПРОВЕРОК ========== -->
+        <receiver
+            android:name=".ExactAlarmReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="ru.fourpda.tickets.EXACT_ALARM"/>
             </intent-filter>
         </receiver>
 

@@ -188,37 +188,53 @@ class BootReceiver : BroadcastReceiver() {
                 putExtra("start_timestamp", System.currentTimeMillis())
             }
 
-            // Используем способ запуска в зависимости от версии Android
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Log.d(TAG, "📱 Android 8+ - запуск foreground service")
-                context.startForegroundService(serviceIntent)
+            // УСТАРЕЛО: Больше не запускаем ForegroundService
+            // Теперь используем только точные будильники через ExactAlarmScheduler
+            Log.d(TAG, "ℹ️ Автозапуск ForegroundService отключен - используем ExactAlarmScheduler")
+            
+            // Проверяем, что точные будильники настроены
+            val intervalSeconds = SettingsActivity.getRefreshInterval(context)
+            if (ExactAlarmScheduler.canScheduleExactAlarms(context)) {
+                ExactAlarmScheduler.scheduleNextAlarmSeconds(context, intervalSeconds)
+                Log.d(TAG, "✅ Перепланирован точный будильник на $intervalSeconds секунд")
             } else {
-                Log.d(TAG, "📱 Android 7- - запуск обычного service")
-                context.startService(serviceIntent)
+                Log.w(TAG, "⚠️ Нет разрешения на точные будильники")
             }
 
-            Log.d(TAG, "✅ ForegroundMonitorService успешно запущен автоматически")
+            Log.d(TAG, "✅ Точные будильники успешно настроены автоматически")
+
+            // Запускаем дополнительные механизмы защиты от усыпления
+            KeepAliveWorker.scheduleWork(context)
+            AlarmReceiver.scheduleAlarm(context)
+            
+            // НОВОЕ: Восстанавливаем точные будильники после перезагрузки
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ExactAlarmScheduler.canScheduleExactAlarms(context)) {
+                ExactAlarmScheduler.scheduleNextAlarm(context, 5)
+                Log.d(TAG, "✅ Восстановлены точные будильники после перезагрузки")
+            } else {
+                Log.d(TAG, "⚠️ Точные будильники недоступны - используем резервные механизмы")
+            }
+            
+            Log.d(TAG, "✅ Запущены все механизмы защиты от усыпления при автозапуске")
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Ошибка запуска ForegroundMonitorService: ${e.message}")
             e.printStackTrace()
 
-            // Пытаемся запустить через несколько секунд
+            // Пытаемся настроить точные будильники через несколько секунд
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 try {
-                    Log.d(TAG, "🔄 Повторная попытка запуска сервиса...")
-                    val retryIntent = Intent(context, ForegroundMonitorService::class.java).apply {
-                        action = ForegroundMonitorService.ACTION_START_MONITORING
-                        putExtra("retry_attempt", true)
-                    }
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(retryIntent)
+                    Log.d(TAG, "🔄 Повторная попытка настройки точных будильников...")
+                    
+                    val intervalSeconds = SettingsActivity.getRefreshInterval(context)
+                    if (ExactAlarmScheduler.canScheduleExactAlarms(context)) {
+                        ExactAlarmScheduler.scheduleNextAlarmSeconds(context, intervalSeconds)
+                        Log.d(TAG, "✅ Повторная настройка точных будильников выполнена")
                     } else {
-                        context.startService(retryIntent)
+                        Log.w(TAG, "⚠️ Все еще нет разрешения на точные будильники")
                     }
 
-                    Log.d(TAG, "✅ Повторный запуск выполнен")
+                    Log.d(TAG, "✅ Повторная настройка выполнена")
 
                 } catch (retryException: Exception) {
                     Log.e(TAG, "❌ Повторный запуск также неудачен: ${retryException.message}")

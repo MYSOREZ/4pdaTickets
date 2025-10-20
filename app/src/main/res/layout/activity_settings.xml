@@ -20,13 +20,18 @@
 
             <!-- Заголовок -->
             <TextView
+                android:id="@+id/textSettingsTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="⚙️ Настройки мониторинга"
                 android:textStyle="bold"
                 android:textSize="22sp"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginBottom="32dp"/>
+                android:layout_marginBottom="32dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackground"
+                android:padding="8dp"/>
 
             <!-- Секция частоты мониторинга -->
             <TextView
@@ -75,18 +80,20 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📊 Диапазон: от 10 до 300 секунд"
+                android:text="📊 Диапазон: от 1 минуты до 10 минут"
                 android:textSize="14sp"
                 android:textColor="?android:attr/textColorSecondary"
                 android:layout_marginBottom="32dp"/>
 
+
+
             <!-- Кнопка сброса -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnResetToDefault"
-                style="?attr/materialButtonOutlinedStyle"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Сбросить по умолчанию (30 сек)"
+                android:text="Сбросить по умолчанию (5 мин)"
                 android:layout_marginBottom="24dp"/>
 
             <!-- Статус сохранения (скрытый по умолчанию) -->
@@ -107,7 +114,7 @@
     <!-- Кнопка зафиксированная внизу экрана -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnBackToMain"
-        style="?attr/materialButtonStyle"
+        style="@style/Widget.Material3.Button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Вернуться в главное меню"

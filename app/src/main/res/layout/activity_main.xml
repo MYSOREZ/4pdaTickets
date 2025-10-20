@@ -37,6 +37,14 @@
             android:layout_marginBottom="32dp"/>
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMyTickets"
+            style="?attr/materialButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📃 Мои тикеты"
+            android:layout_marginBottom="16dp"/>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnStartMonitoring"
             style="?attr/materialButtonOutlinedStyle"
             android:layout_width="match_parent"

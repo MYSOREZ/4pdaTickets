@@ -26,6 +26,8 @@ class ForegroundMonitorService : Service() {
         const val ACTION_START_MONITORING = "ru.fourpda.tickets.action.START_MONITORING"
         const val ACTION_STOP_MONITORING = "ru.fourpda.tickets.action.STOP_MONITORING"
         const val ACTION_REFRESH_WEBVIEW = "ru.fourpda.tickets.action.REFRESH_WEBVIEW"
+        const val ACTION_PING = "ru.fourpda.tickets.action.PING"
+        const val ACTION_KEEP_ALIVE = "ru.fourpda.tickets.action.KEEP_ALIVE"
 
         private const val NOTIFICATION_ID = 1
 
@@ -70,7 +72,7 @@ class ForegroundMonitorService : Service() {
             val serviceChannel = NotificationChannel(
                 CHANNEL_SERVICE_ID,
                 "Мониторинг тикетов",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Уведомления о работе сервиса мониторинга"
                 setShowBadge(false)
@@ -110,6 +112,8 @@ class ForegroundMonitorService : Service() {
                 return START_NOT_STICKY  // Не перезапускать после остановки
             }
             ACTION_REFRESH_WEBVIEW -> refreshWebView()
+            ACTION_PING -> handlePing()
+            ACTION_KEEP_ALIVE -> handleKeepAlive()
         }
         return START_STICKY  // Только для обычной работы - перезапуск если система убьёт
     }
@@ -126,6 +130,37 @@ class ForegroundMonitorService : Service() {
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager?.notify(NOTIFICATION_ID, notification)
         }
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        val message = "⏰ onTimeout вызван! Система требует остановить FGS (startId=$startId, type=$fgsType)"
+        Log.w(TAG, message)
+        FileLogger.w(TAG, message)
+        
+        // Логируем состояние приложения перед остановкой
+        FileLogger.logAppState(this)
+        
+        // Сохраняем информацию о том, что сервис был остановлен системой
+        val prefs = getSharedPreferences("service_state", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("stopped_by_timeout", true)
+            .putLong("timeout_timestamp", System.currentTimeMillis())
+            .apply()
+        
+        FileLogger.w(TAG, "💾 Сохранена информация о тайм-ауте в SharedPreferences")
+        
+        // Принудительно сохраняем логи перед остановкой
+        FileLogger.flush()
+        
+        // Немедленно останавливаем сервис чтобы избежать крэша
+        stopMonitoring()
+        stopSelf()
+        
+        // Показываем уведомление пользователю о необходимости перезапуска
+        showTimeoutNotification()
+        
+        FileLogger.w(TAG, "🛑 Сервис остановлен по тайм-ауту Android 15")
+        super.onTimeout(startId, fgsType)
     }
 
     override fun onDestroy() {
@@ -196,7 +231,7 @@ class ForegroundMonitorService : Service() {
         }
     }
 
-    // Запуск мониторинга
+    // Запуск мониторинга БЕЗ постоянного FGS
     private fun startMonitoring() {
         if (isServiceStarted) return
         isServiceStarted = true
@@ -204,13 +239,30 @@ class ForegroundMonitorService : Service() {
 
         // Получаем интервал из настроек
         currentRefreshInterval = getCurrentRefreshInterval()
-        Log.d(TAG, "🔄 Установлен интервал обновления: ${currentRefreshInterval/1000} секунд")
+        val message = "🔄 Установлен интервал обновления: ${currentRefreshInterval/1000} секунд"
+        Log.d(TAG, message)
+        FileLogger.d(TAG, message)
 
-        startForeground(NOTIFICATION_ID, createServiceNotification())
+        // НЕ запускаем как foreground service - показываем обычное ongoing уведомление
+        showOngoingNotification()
         ticketMonitor?.startMonitoring()
         scheduleNextRefresh(0)
 
-        Log.d(TAG, "Мониторинг запущен в сервисе с интервалом ${currentRefreshInterval/1000} сек")
+        val startMessage = "🚀 Мониторинг запущен в сервисе с интервалом ${formatInterval(currentRefreshInterval/1000)} (без постоянного FGS)"
+        Log.d(TAG, startMessage)
+        FileLogger.i(TAG, startMessage)
+    }
+
+    // Показываем обычное ongoing уведомление БЕЗ foreground service
+    private fun showOngoingNotification() {
+        try {
+            val notification = createServiceNotification()
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager?.notify(NOTIFICATION_ID, notification)
+            Log.d(TAG, "✅ Показано обычное ongoing уведомление (не FGS)")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Ошибка показа ongoing уведомления: ${e.message}")
+        }
     }
 
     // Полная остановка сервиса с очисткой
@@ -245,8 +297,7 @@ class ForegroundMonitorService : Service() {
             cancelAll() // Удаляем все уведомления приложения
         }
 
-        // 5. Принудительная остановка foreground service
-        stopForeground(true)  // true = удалить уведомление
+        // 5. Остановка сервиса (теперь не foreground)
         stopSelf()  // Принудительная остановка
 
         Log.d(TAG, "✅ Сервис принудительно остановлен и очищен")
@@ -268,10 +319,10 @@ class ForegroundMonitorService : Service() {
         val newInterval = getCurrentRefreshInterval()
         if (newInterval != currentRefreshInterval) {
             currentRefreshInterval = newInterval
-            Log.d(TAG, "🔄 Обновлен интервал: ${currentRefreshInterval/1000} секунд")
+        Log.d(TAG, "🔄 Обновлен интервал: ${formatInterval(currentRefreshInterval/1000)}")
         }
 
-        Log.d(TAG, "Обновление WebView #$refreshCount (интервал: ${currentRefreshInterval/1000}с)")
+        Log.d(TAG, "Обновление WebView #$refreshCount (интервал: ${formatInterval(currentRefreshInterval/1000)})")
 
         webView?.loadUrl("javascript:window.location.reload(true)")
         scheduleNextRefresh(currentRefreshInterval)
@@ -279,23 +330,10 @@ class ForegroundMonitorService : Service() {
 
     private fun createTicketIntent(): Intent {
         val ticketUrl = "https://4pda.to/forum/index.php?act=ticket"
-
-        // Сначала пытаемся открыть в приложении 4PDA
-        val fourpdaIntent = Intent(Intent.ACTION_VIEW, Uri.parse(ticketUrl)).apply {
-            setPackage("ru.fourpda.client")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-
-        // Проверяем, может ли система обработать этот intent
-        return if (packageManager.resolveActivity(fourpdaIntent, PackageManager.MATCH_DEFAULT_ONLY) != null) {
-            Log.d(TAG, "✅ Служебное уведомление: открываем в приложении 4PDA")
-            fourpdaIntent
-        } else {
-            Log.d(TAG, "❌ Служебное уведомление: приложение 4PDA не найдено")
-            Intent(Intent.ACTION_VIEW, Uri.parse(ticketUrl)).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-        }
+        Log.d(TAG, "🔗 Создаем интент для служебного уведомления: $ticketUrl")
+        
+        // Используем робастный метод создания интента с поддержкой HyperOS/MIUI
+        return IntentDebugger.createRobustFourpdaIntent(this, ticketUrl)
     }
 
     // Служебное уведомление теперь открывает прямую ссылку на тикеты
@@ -316,7 +354,7 @@ class ForegroundMonitorService : Service() {
             val status = customText ?: "Мониторинг активен"
             val intervalSec = currentRefreshInterval / 1000
 
-            status to "Всего: $totalTickets\nОбработанные/необработанные: $processedTickets/$unprocessedTickets\nВ работе: $inProgressTickets\nИнтервал: ${intervalSec}с"
+            status to "Всего: $totalTickets\nОбработанные/необработанные: $processedTickets/$unprocessedTickets\nВ работе: $inProgressTickets\nИнтервал: ${formatInterval(intervalSec)}"
         }
 
         val multiLineText = if (detailText.isNotEmpty()) {
@@ -332,7 +370,7 @@ class ForegroundMonitorService : Service() {
                 .bigText(multiLineText))
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
@@ -359,7 +397,7 @@ class ForegroundMonitorService : Service() {
 
             val intervalSec = currentRefreshInterval / 1000
             val statusLog = if (isUserAuthed) {
-                "Всего: $totalTickets, обработанные/необработанные: $processedTickets/$unprocessedTickets, в работе: $inProgressTickets (${intervalSec}с)"
+                "Всего: $totalTickets, обработанные/необработанные: $processedTickets/$unprocessedTickets, в работе: $inProgressTickets (${formatInterval(intervalSec)})"
             } else {
                 "Требуется авторизация"
             }
@@ -416,5 +454,74 @@ class ForegroundMonitorService : Service() {
             }
         }
         statsReceiver = null
+    }
+
+    private fun handlePing() {
+        Log.d(TAG, "📡 Получен PING от KeepAliveWorker")
+        // Обновляем время последней активности
+        val prefs = getSharedPreferences("service_state", Context.MODE_PRIVATE)
+        prefs.edit().putLong("last_ping_time", System.currentTimeMillis()).apply()
+    }
+
+    private fun handleKeepAlive() {
+        Log.d(TAG, "💓 Получен KEEP_ALIVE от AlarmReceiver")
+        // Обновляем время последней активности и проверяем состояние
+        val prefs = getSharedPreferences("service_state", Context.MODE_PRIVATE)
+        prefs.edit().putLong("last_keep_alive_time", System.currentTimeMillis()).apply()
+        
+        // Если сервис был неактивен, перезапускаем мониторинг
+        if (!isServiceStarted) {
+            Log.d(TAG, "⚠️ Сервис был неактивен - перезапускаем мониторинг")
+            startMonitoring()
+        }
+    }
+    
+    private fun showTimeoutNotification() {
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        
+        // Интент для открытия приложения (это сбросит лимит)
+        val openAppIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            999,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        )
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_TICKETS_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("⏰ Мониторинг остановлен системой")
+            .setContentText("Android ограничил работу до 6 часов. Нажмите для перезапуска.")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("Android 15 ограничивает работу фоновых сервисов до 6 часов в сутки. " +
+                        "Для продолжения мониторинга откройте приложение и перезапустите мониторинг."))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .build()
+        
+        notificationManager?.notify(998, notification)
+        Log.d(TAG, "📱 Показано уведомление о тайм-ауте системы")
+    }
+
+    private fun formatInterval(seconds: Long): String {
+        return when {
+            seconds >= 60 -> {
+                val minutes = seconds / 60
+                val remainingSeconds = seconds % 60
+                if (remainingSeconds == 0L) {
+                    "$minutes мин"
+                } else {
+                    "$minutes мин $remainingSeconds сек"
+                }
+            }
+            else -> "$seconds сек"
+        }
     }
 }

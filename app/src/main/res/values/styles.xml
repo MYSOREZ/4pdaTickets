@@ -18,6 +18,10 @@
         <item name="android:windowBackground">@color/white</item>
         <item name="android:hardwareAccelerated">true</item>
         <item name="android:windowAnimationStyle">@null</item>
+
+        <!-- Стили кнопок -->
+        <item name="materialButtonStyle">@style/App.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/App.Button.Outlined</item>
     </style>
 
     <!-- 2. Тема-клон, если когда-то нужна активность «NoActionBar» отдельно -->
@@ -29,6 +33,20 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">false</item>
         <item name="colorPrimary">@color/purple_500</item>
+    </style>
+
+    <!-- Кастомный стиль для кнопок -->
+    <style name="App.Button.Outlined" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.App.Button.Pill</item>
+    </style>
+
+    <style name="App.Button" parent="Widget.MaterialComponents.Button">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.App.Button.Pill</item>
+    </style>
+
+    <style name="ShapeAppearance.App.Button.Pill" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
     </style>
 
 </resources>

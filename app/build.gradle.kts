@@ -90,6 +90,12 @@ dependencies {
 
     // Preferences для настроек
     implementation("androidx.preference:preference-ktx:1.2.1")
+    
+    // WorkManager для фоновых задач
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    
+    // Корутины для асинхронных операций
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // Тестирование
     testImplementation("junit:junit:4.13.2")
