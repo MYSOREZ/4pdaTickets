@@ -25,7 +25,7 @@ class TicketListActivity : AppCompatActivity() {
     private lateinit var ui: ActivityTicketListBinding
     private lateinit var adapter: TicketAdapter
     private var webView: WebView? = null
-    private val handler = Handler(Looper.getMainLooper())
+    private val uiHandler by lazy { Handler(Looper.getMainLooper()) }
 
     // Статистика
     private var totalTickets = 0
@@ -75,7 +75,6 @@ class TicketListActivity : AppCompatActivity() {
                 settings.useWideViewPort = true
                 @Suppress("DEPRECATION")
                 settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                // FIX: setSupportZoom is a WebSettings method
                 settings.setSupportZoom(false)
                 settings.builtInZoomControls = false
                 settings.displayZoomControls = false
@@ -90,7 +89,8 @@ class TicketListActivity : AppCompatActivity() {
                         try {
                             Log.d(TAG, "Страница загружена: $url")
                             if (url?.contains("act=ticket") == true) {
-                                handler.postDelayed({
+                                // Используем uiHandler вместо handler, чтобы исключить NPE
+                                uiHandler.postDelayed({
                                     if (!isFinishing && !isDestroyed) extractTickets()
                                 }, 2000)
                             }
