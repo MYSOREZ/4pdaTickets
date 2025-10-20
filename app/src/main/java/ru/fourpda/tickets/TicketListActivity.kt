@@ -73,8 +73,10 @@ class TicketListActivity : AppCompatActivity() {
                 settings.cacheMode = WebSettings.LOAD_NO_CACHE
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
+                @Suppress("DEPRECATION")
                 settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                setSupportZoom(false)
+                // FIX: setSupportZoom is a WebSettings method
+                settings.setSupportZoom(false)
                 settings.builtInZoomControls = false
                 settings.displayZoomControls = false
 
@@ -180,10 +182,10 @@ class TicketListActivity : AppCompatActivity() {
                         const html = contentEl.innerHTML;
                         const topicMatch = html.match(/Тема:<\/strong>\s*<a[^>]+>([^<]+)<\/a>/);
                         if (topicMatch) { topic = topicMatch[1].trim(); }
-                        else { const topicLink = contentEl.querySelector('a[href*="findpost"]'); if (topicLink) topic = topicLink.textContent.trim(); }
+                        else { const topicLink = contentEl.querySelector('a[href*=\"findpost\"]'); if (topicLink) topic = topicLink.textContent.trim(); }
                         const authorMatch = html.match(/Автор поста:<\/strong>\s*<a[^>]+>([^<]+)<\/a>/);
                         if (authorMatch) { postAuthor = authorMatch[1].trim(); }
-                        else { const userLinks = contentEl.querySelectorAll('a[href*="showuser"]'); if (userLinks.length>0) postAuthor = userLinks[0].textContent.trim(); }
+                        else { const userLinks = contentEl.querySelectorAll('a[href*=\"showuser\"]'); if (userLinks.length>0) postAuthor = userLinks[0].textContent.trim(); }
                         const senderEl = contentEl.querySelector('.td-member a'); if (senderEl) sender = senderEl.textContent.trim();
                         if (!topic || !postAuthor) {
                           const msgEl = contentEl.querySelector('.td-message');
