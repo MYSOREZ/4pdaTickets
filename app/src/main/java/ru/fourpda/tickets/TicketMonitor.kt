@@ -116,6 +116,7 @@ class TicketMonitor(
     private fun executeJavaScript() {
         Log.d(TAG, "Внедрение JavaScript для поиска тикетов")
 
+        // ВНИМАНИЕ: экранирование в RegExp приведено в соответствие, чтобы не вызывать SyntaxError
         val js = """
             (function () {
               try {
@@ -126,7 +127,7 @@ class TicketMonitor(
                 let totalCount = 0;
                 let debugInfo = 'DEBUG [' + new Date().toLocaleTimeString() + ']: Анализ страницы тикетов 4PDA: ';
                 
-                const allRows = document.querySelectorAll('div.t-row[id^=\"t-row-\"]');
+                const allRows = document.querySelectorAll('div.t-row[id^="t-row-"]');
                 totalCount = allRows.length;
                 debugInfo += 'Найдено строк тикетов: ' + totalCount + '. ';
                 
@@ -210,11 +211,12 @@ class TicketMonitor(
                       }
                       
                       if (contentEl) {
-                        const topicMatch = contentEl.innerHTML.match(/Тема:<\\/strong>\\s*<a[^>]+>([^<]+)<\\/a>/);
+                        // Исправлено: корректное экранирование слэшей в RegExp
+                        const topicMatch = contentEl.innerHTML.match(/Тема:<\/?strong>\s*<a[^>]+>([^<]+)<\/a>/);
                         if (topicMatch) {
                           topic = topicMatch[1].trim();
                         } else {
-                          const topicLink = contentEl.querySelector('a[href*=\"findpost\"]');
+                          const topicLink = contentEl.querySelector('a[href*="findpost"]');
                           if (topicLink) {
                             topic = topicLink.textContent.trim();
                           }
@@ -229,15 +231,15 @@ class TicketMonitor(
                           let messageHTML = lastTdMessage.innerHTML;
 
                           // Аккуратно удаляем блок с IP и QMS, где бы он ни был
-                          messageHTML = messageHTML.replace(/IP:[\\s\\S]*?QMS/g, '');
+                          messageHTML = messageHTML.replace(/IP:[\s\S]*?QMS/g, '');
 
                           // Теперь обрабатываем очищенный HTML
-                          messageHTML = messageHTML.replace(/<br\\s*\\/?>/gi, '\\n');
-                          messageHTML = messageHTML.replace(/<\\/p>|<\\/div>/gi, '\\n');
+                          messageHTML = messageHTML.replace(/<br\s*\/?>(?=\s*\n?)/gi, '\n');
+                          messageHTML = messageHTML.replace(/<\/(p|div)>/gi, '\n');
                           let descText = messageHTML.replace(/<[^>]+>/g, '').trim();
 
                           // Финальная очистка пробелов
-                          descText = descText.replace(/(\\s*\\n\\s*)+/g, '\\n').trim();
+                          descText = descText.replace(/(\s*\n\s*)+/g, '\n').trim();
                           // --- Конец улучшенной логики ---
 
                           // Ограничиваем длину описания
